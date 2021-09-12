@@ -2,33 +2,46 @@ use std::collections::HashMap;
 use std::path::Path;
 use std::fs::File;
 use std::io::BufRead;
+use std::ops::Range;
+use std::iter::Map;
 
 /// Words are represented by a lookup table. This is an index into that table. More common words are "lesser" by the Ord trait.
 #[derive(Eq, PartialEq,Debug,Ord, PartialOrd,Copy, Clone)]
-pub struct WordIndex(usize);
+pub struct WordIndex(pub u32);
+
+pub trait WordSource {
+    /// The number of words
+    fn len(&self) -> usize;
+    /// The text of the word
+    fn word(&self,index:WordIndex) -> &str ;
+    /// The index of the word. Smaller values are more common.
+    fn index(&self,word:&str) -> Option<WordIndex> ;
+    /// Returns an iterator over all words in order most common to least common.
+    fn all_indices(&self) -> Map<Range<usize>, fn(usize) -> WordIndex> {
+        (0..self.len()).map(|i|WordIndex(i as u32))
+    }
+}
 
 
-pub struct Words {
+pub struct MemoryWords {
     words : Vec<String>,
     lookup : HashMap<String,WordIndex>,
 }
 
-impl Words {
-    pub fn word(&self,index:WordIndex) -> &str { &self.words[index.0]}
+impl WordSource for MemoryWords {
+    fn len(&self) -> usize { self.words.len() }
+    fn word(&self,index:WordIndex) -> &str { &self.words[index.0 as usize]}
 
-    pub fn index(&self,word:&str) -> Option<WordIndex> { self.lookup.get(word).cloned() }
+    fn index(&self,word:&str) -> Option<WordIndex> { self.lookup.get(word).cloned() }
+}
+impl MemoryWords {
 
     fn add(&mut self,s:&str) -> WordIndex {
-        let res = WordIndex(self.words.len());
+        let res = WordIndex(self.words.len() as u32);
         self.words.push(s.to_string());
         self.lookup.insert(s.to_string(),res);
         res
     }
-
-    pub fn all_indices(&self) -> impl Iterator<Item=WordIndex> {
-        (0..self.words.len()).map(|i|WordIndex(i))
-    }
-
 }
 
 pub struct WordVec {
@@ -83,13 +96,13 @@ pub struct WordVecs {
 }
 
 impl WordVecs {
-    pub fn get(&self,word:WordIndex) -> &WordVec { &self.vecs[word.0] }
+    pub fn get(&self,word:WordIndex) -> &WordVec { &self.vecs[word.0 as usize] }
 }
 
-
-pub fn read_glove<P:AsRef<Path>>(path:P) -> std::io::Result<(Words,WordVecs)> {
+/// Read a glove format file, up to max_words if not None.
+pub fn read_glove<P:AsRef<Path>>(path:P,max_words:Option<usize>) -> std::io::Result<(MemoryWords, WordVecs)> {
     let file = File::open(path)?;
-    let mut words = Words{ words: vec![], lookup: Default::default() };
+    let mut words = MemoryWords { words: vec![], lookup: Default::default() };
     let mut wordvecs=WordVecs{ vecs: vec![] };
     for line in std::io::BufReader::new(file).lines() {
         let line = line?;
@@ -97,7 +110,10 @@ pub fn read_glove<P:AsRef<Path>>(path:P) -> std::io::Result<(Words,WordVecs)> {
         let word = line[0];
         words.add(word);
         let nums : Vec<f64> = line[1..].iter().map(|l|l.parse().unwrap()).collect();
-        wordvecs.vecs.push(WordVec::new(nums))
+        wordvecs.vecs.push(WordVec::new(nums));
+        if let Some(max) = max_words {
+            if words.len()==max { break; }
+        }
     }
     Ok((words,wordvecs))
 }

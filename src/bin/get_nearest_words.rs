@@ -1,66 +1,44 @@
 //! Get words closest to other words.
+//! Use to create (once) a synonym list.
+
+use word_comparison::word::{read_glove, WordSource};
+use word_comparison::near_words::{WordAndValue, SmallestN, print_near_words_vec};
+use word_comparison::word_file::{write_word_file, WordsInFile, WORD_MMAP_FILE};
 
 
-use word_comparison::word::{read_glove, WordIndex, Words};
-use std::collections::BinaryHeap;
-use std::cmp::Ordering;
-
-#[derive(Debug, PartialEq,Copy, Clone)]
-struct WordAndValue {
-    word : WordIndex,
-    value : f64,
-}
-
-impl Eq for WordAndValue {
-}
-impl Ord for WordAndValue {
-    fn cmp(&self, other: &Self) -> Ordering {
-        match self.value.partial_cmp(&other.value).unwrap() {
-            Ordering::Equal => self.word.cmp(&other.word),
-            res => res,
-        }
-    }
-}
-impl PartialOrd for WordAndValue {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        self.value.partial_cmp(&other.value)
-    }
-}
-
-/// Stores the smallest n values
-struct SmallestN {
-    n : usize,
-    values : BinaryHeap<WordAndValue>,
-}
-
-impl SmallestN {
-    pub fn new(n:usize) -> Self {
-        SmallestN{n,values:BinaryHeap::with_capacity(n+1)}
-    }
-
-    pub fn add(&mut self,w:WordAndValue) {
-        if self.values.len()<self.n || (w.value<self.values.peek().unwrap().value && {self.values.pop(); true}) {
-            self.values.push(w);
-        }
-    }
-
-    pub fn into_sorted_vec(self) -> Vec<WordAndValue> { self.values.into_sorted_vec() }
-}
-
-fn print_vec(words:&Words,v:&[WordAndValue],reversed_sign:bool) -> String {
-    let mut res = String::new();
-    for e in v {
-        res.push('\t');
-        res.push_str(words.word(e.word));
-        res.push('\t');
-        let value = if reversed_sign { -e.value } else { e.value };
-        res.push_str(&format!("{:.4}",value))
-    }
-    res
-}
+fn bad_args() { println!("Arguments should be create or test (or old)");}
 
 fn main() -> std::io::Result<()>{
-    let (words,wordvecs) = read_glove("/big/shared/NLP.glove/glove6B/glove.6B.50d.txt")?;
+    let args: Vec<String> = std::env::args().collect();
+    if args.len()==2 {
+        match args[1].as_str() {
+            "create" => {
+                let (words,wordvecs) = read_glove("/big/shared/NLP.glove/glove6B/glove.6B.100d.txt",None)?;
+                write_word_file(WORD_MMAP_FILE,&words,&wordvecs,20)?;
+            }
+            "test" => { check_word_file()?; }
+            "old" => { print_text()?; }
+            _ => bad_args()
+        }
+    } else { bad_args() }
+    Ok(())
+}
+
+fn check_word_file() -> std::io::Result<()>{
+    let words = WordsInFile::read_word_file(WORD_MMAP_FILE)?;
+    for i in words.all_indices() {
+        let word = words.word(i);
+        println!("{}\t{}",word,print_near_words_vec(&words,&words.synonyms(i),false));
+        let lookup = words.index(word);
+        assert_eq!(lookup,Some(i));
+    }
+    Ok(())
+}
+
+/// other thing that could be done.
+#[allow(dead_code)]
+fn print_text() -> std::io::Result<()>{
+    let (words,wordvecs) = read_glove("/big/shared/NLP.glove/glove6B/glove.6B.50d.txt",None)?;
     for i in words.all_indices() {
         let word = words.word(i);
         let vec_i = wordvecs.get(i);
@@ -69,17 +47,17 @@ fn main() -> std::io::Result<()>{
         let mut best_distance = SmallestN::new(10);
         for j in words.all_indices() {
             let vec_j = wordvecs.get(j);
-            best_dot.add(WordAndValue{ word: j, value: -vec_i.dot_product(vec_j) });
-            best_cosine.add(WordAndValue{ word: j, value: -vec_i.cosine(vec_j) });
-            best_distance.add(WordAndValue{ word: j, value: vec_i.distance(vec_j) })
+            best_dot.add(WordAndValue{ word: j, value: -vec_i.dot_product(vec_j) as f32 });
+            best_cosine.add(WordAndValue{ word: j, value: -vec_i.cosine(vec_j) as f32 });
+            best_distance.add(WordAndValue{ word: j, value: vec_i.distance(vec_j) as f32 })
         }
         let best_dot = best_dot.into_sorted_vec();
         let best_cosine = best_cosine.into_sorted_vec();
         let best_distance = best_distance.into_sorted_vec();
         println!("Word {}",word);
-        println!("Dot{}",print_vec(&words,&best_dot,true));
-        println!("Cos{}",print_vec(&words,&best_cosine,true));
-        println!("D{}",print_vec(&words,&best_distance,false));
+        println!("Dot{}",print_near_words_vec(&words,&best_dot,true));
+        println!("Cos{}",print_near_words_vec(&words,&best_cosine,true));
+        println!("D{}",print_near_words_vec(&words,&best_distance,false));
         println!();
     }
 
