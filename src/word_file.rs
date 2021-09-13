@@ -112,7 +112,33 @@ impl WordsInFile {
         res
     }
 
+    /// find a word that is a prefix of the given string.
+    /// If there are multiple ones, find the longest.
+    pub fn index_starting(&self,word:&str) -> Option<(WordIndex,usize)> {
+        let mut low  = 0; // values less than this are NOT the word.
+        let mut high = self.number_words; // values equal to or higher than this are NOT the word.
+        let mut prefix : Option<(WordIndex,usize)> = None; // This is a valid prefix. There may be better ones while still in the loop.
+        while low<=high {
+            let mid = (low+high)/2;
+            let word_index = WordIndex(self.read_u32(self.alphabetic_order_start+4*mid));
+            let mid_word = self.word(word_index);
+            if word.starts_with(mid_word) {
+                prefix=Some((word_index,mid_word.len())); // TODO is this unicode safe? Is mid_word.len the same as the prefix?
+                low=mid+1; // try to look for a longer prefix.
+            } else {
+                match word.cmp(mid_word) {
+                    Ordering::Less => { high = mid-1 }
+                    Ordering::Equal => { return Some((word_index,word.len())) } // should never happen.
+                    Ordering::Greater => { low = mid+1 }
+                }
+            }
+        }
+        prefix
+    }
+
 }
+
+
 
 impl WordSource for WordsInFile {
     fn len(&self) -> usize { self.number_words }
@@ -132,7 +158,7 @@ impl WordSource for WordsInFile {
             let word_index = WordIndex(self.read_u32(self.alphabetic_order_start+4*mid));
             let mid_word = self.word(word_index);
             match word.cmp(mid_word) {
-                Ordering::Less => { high = mid }
+                Ordering::Less => { high = mid-1 }
                 Ordering::Equal => { return Some(word_index) }
                 Ordering::Greater => { low = mid+1 }
             }
