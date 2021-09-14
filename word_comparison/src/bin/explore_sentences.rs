@@ -9,5 +9,10 @@ fn main() -> std::io::Result<()>{
     println!("Parsing {}",sentence);
     let parsed = TokenizedSentence::tokenize(sentence, &words, &keywords);
     parsed.explain(&words,&keywords);
+
+    println!("wood {:?}",words.index_starting("wood"));
+    println!("wood? {:?}",words.index_starting("wood?"));
+    println!("woodf {:?}",words.index_starting("woodf"));
+    println!("wood f {:?}",words.index_starting("wood f"));
     Ok(())
 }

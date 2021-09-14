@@ -50,7 +50,7 @@ impl StoredQuestion {
 impl QuestionDatabase {
     pub const STD_FILE_NAME : &'static str = "QuestionDatabase.txt";
 
-    fn add_work(&mut self,question:String,words:&WordsInFile,keywords:&ListedKeywords) {
+    fn add_work(&mut self,question:String,words:&WordsInFile,keywords:&ListedKeywords) -> QuestionID {
         let question = StoredQuestion::new(question,words,keywords);
         let id = QuestionID(self.questions.len());
         fn add<K>(entry:Entry<K,Vec<QuestionID>>,id:QuestionID) {
@@ -71,15 +71,16 @@ impl QuestionDatabase {
             self.containing_unique.entry(word.clone()).or_insert_with(||vec![]).push(id);
         }
         self.questions.push(question);
+        id
     }
 
     /// Add a new question to the database.
-    pub fn add(&mut self,question:&str,words:&WordsInFile,keywords:&ListedKeywords) -> std::io::Result<()> {
+    pub fn add(&mut self,question:&str,words:&WordsInFile,keywords:&ListedKeywords) -> std::io::Result<QuestionID> {
         let question = question.replace('\n'," ");
         let mut file = OpenOptions::new().create(true).write(true).append(true).open(&self.filename)?;
         writeln!(file, "{}",question)?;
-        self.add_work(question,words,keywords);
-        Ok(())
+        let id = self.add_work(question,words,keywords);
+        Ok(id)
     }
 
     /// Get a new database, initialised from text file if it exists.
@@ -99,6 +100,10 @@ impl QuestionDatabase {
         Ok(res)
     }
 
+    /// Get all questions in the database. Could be slow!
+    pub fn get_all_questions(&self) -> Vec<String> {
+        self.questions.iter().map(|q|q.question.clone()).collect()
+    }
     /// Get the text associated with a question
     pub fn lookup(&self,id:QuestionID) -> Option<&str> {
         self.questions.get(id.0).map(|q|q.question.as_str())
@@ -117,6 +122,8 @@ impl QuestionDatabase {
 
     pub fn compare(&self, question:&str, words:&WordsInFile, keywords:&ListedKeywords) -> Vec<ScoredIDs> {
         let tokenized = TokenizedSentence::tokenize(&question,words,keywords);
+        println!();
+        tokenized.explain(words,keywords);
         let mut scores = SentenceScores::default();
         for token in &tokenized.parts {
             match token {

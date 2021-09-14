@@ -114,28 +114,48 @@ impl WordsInFile {
 
     /// find a word that is a prefix of the given string.
     /// If there are multiple ones, find the longest.
+    /// Now it is not clear how to handle punctuation here. You want to get "u.s.a." to contain punctuation, but not "where?" This is a problem if there is a word like "wherefore" in the dictionary, which the binary search could end up saying comes before "where?" so "where" will never be seen.
     pub fn index_starting(&self,word:&str) -> Option<(WordIndex,usize)> {
-        let mut low  = 0; // values less than this are NOT the word.
-        let mut high = self.number_words; // values equal to or higher than this are NOT the word.
+        let low  = 0; // values less than this are NOT the word.
+        let high = self.number_words; // values equal to or higher than this are NOT the word.
+        self.index_starting_between(word,low,high)
+    }
+
+    /// like index_starting but between low(inclusive) and high(exclusive).
+    fn index_starting_between(&self,word:&str,mut low:usize,mut high:usize) -> Option<(WordIndex,usize)> {
         let mut prefix : Option<(WordIndex,usize)> = None; // This is a valid prefix. There may be better ones while still in the loop.
-        while low<=high {
+        while low<high {
             let mid = (low+high)/2;
             let word_index = WordIndex(self.read_u32(self.alphabetic_order_start+4*mid));
             let mid_word = self.word(word_index);
-            if word.starts_with(mid_word) {
-                prefix=Some((word_index,mid_word.len())); // TODO is this unicode safe? Is mid_word.len the same as the prefix?
-                low=mid+1; // try to look for a longer prefix.
-            } else {
-                match word.cmp(mid_word) {
-                    Ordering::Less => { high = mid-1 }
-                    Ordering::Equal => { return Some((word_index,word.len())) } // should never happen.
-                    Ordering::Greater => { low = mid+1 }
+            //println!("comparing word={}, mid_word={}",word,mid_word);
+            match word.char_indices().zip(mid_word.char_indices()).find(|((_,word_char),(_,mid_char))|word_char!=mid_char)  { // find the first differing character
+                None => { // the shorter is a subset of the longer.
+                    if word.len()>=mid_word.len() { // mid_word is a prefix of word!
+                        let word_used = mid_word.len(); // TODO is this unicode safe? Is mid_word.len the same as the prefix? Could be different if there are different length encodings of the same char.
+                        if prefix.is_none() || prefix.unwrap().1 < word_used { prefix=Some((word_index,word_used)) }
+                        low=mid+1; // try to look for a longer prefix.
+                    } else { // mid_word is longer than word.
+                        high=mid;
+                    }
+                }
+                Some(((word_pos,word_char),(_mid_pos,mid_char))) => {
+                    if word_char<mid_char {
+                        high=mid;
+                    } else {
+                        if word_pos>0 && !word_char.is_alphanumeric() {
+                            // This is the possible case where word="where?" and mid_word="wherefore". Check for this special case.
+                            if let Some(special_case) = self.index_starting_between(&word[..word_pos],low,mid-1) {
+                                if prefix.is_none() || prefix.unwrap().1 < special_case.1 { prefix=Some(special_case) }
+                            }
+                        }
+                        low=mid+1;
+                    }
                 }
             }
         }
         prefix
     }
-
 }
 
 
@@ -153,12 +173,12 @@ impl WordSource for WordsInFile {
     fn index(&self,word:&str) -> Option<WordIndex> {
         let mut low  = 0; // values less than this are NOT the word.
         let mut high = self.number_words; // values equal to or higher than this are NOT the word.
-        while low<=high {
+        while low<high {
             let mid = (low+high)/2;
             let word_index = WordIndex(self.read_u32(self.alphabetic_order_start+4*mid));
             let mid_word = self.word(word_index);
             match word.cmp(mid_word) {
-                Ordering::Less => { high = mid-1 }
+                Ordering::Less => { high = mid }
                 Ordering::Equal => { return Some(word_index) }
                 Ordering::Greater => { low = mid+1 }
             }
@@ -167,3 +187,4 @@ impl WordSource for WordsInFile {
     }
 
 }
+
