@@ -6,7 +6,7 @@ use csv::ReaderBuilder;
 
 pub struct ListedKeyword(pub Vec<String>);
 
-#[derive(Copy, Clone,Debug,Eq, PartialEq)]
+#[derive(Copy, Clone,Debug,Eq, PartialEq,Hash)]
 pub struct ListedKeywordIndex(pub usize);
 
 pub struct ListedKeywords {

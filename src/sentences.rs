@@ -4,7 +4,7 @@ use crate::listed_keywords::{ListedKeywordIndex, ListedKeywords};
 use crate::word::{WordIndex, WordSource};
 use crate::word_file::WordsInFile;
 
-enum SentencePart {
+pub enum SentencePart {
     Listed(ListedKeywordIndex),
     Known(WordIndex),
     Unknown(String),
@@ -21,7 +21,7 @@ impl SentencePart {
 }
 
 pub struct TokenizedSentence {
-    parts : Vec<SentencePart>,
+    pub parts : Vec<SentencePart>,
 }
 
 /// Get the length of the next token. 0 if starts with whitespace.

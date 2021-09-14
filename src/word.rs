@@ -6,7 +6,7 @@ use std::ops::Range;
 use std::iter::Map;
 
 /// Words are represented by a lookup table. This is an index into that table. More common words are "lesser" by the Ord trait.
-#[derive(Eq, PartialEq,Debug,Ord, PartialOrd,Copy, Clone)]
+#[derive(Eq, PartialEq,Debug,Ord, PartialOrd,Copy, Clone,Hash)]
 pub struct WordIndex(pub u32);
 
 pub trait WordSource {
