@@ -10,7 +10,7 @@ use crate::near_words::{SmallestN, WordAndValue};
 use memmap::Mmap;
 use std::cmp::Ordering;
 
-pub const WORD_MMAP_FILE : &str = "/big/shared/NLP.glove/glove6B/glove.6B.100d.synonyms";
+pub const WORD_MMAP_FILE : &str = "GeneralVocabulary.bin";
 
 
 /// * File format

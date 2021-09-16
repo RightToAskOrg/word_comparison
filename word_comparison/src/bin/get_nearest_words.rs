@@ -6,14 +6,15 @@ use word_comparison::near_words::{WordAndValue, SmallestN, print_near_words_vec}
 use word_comparison::word_file::{write_word_file, WordsInFile, WORD_MMAP_FILE};
 
 
-fn bad_args() { println!("Arguments should be create or test (or old)");}
+fn bad_args() { println!("Arguments should be `create <source_path>' or `test' (or old)");}
 
 fn main() -> std::io::Result<()>{
     let args: Vec<String> = std::env::args().collect();
-    if args.len()==2 {
+    if args.len()>1 {
         match args[1].as_str() {
             "create" => {
-                let (words,wordvecs) = read_glove("/big/shared/NLP.glove/glove6B/glove.6B.100d.txt",None)?;
+                let path = if args.len()>2 { args[2].as_str() } else { bad_args(); return Ok(())};
+                let (words,wordvecs) = read_glove(path,None)?;
                 write_word_file(WORD_MMAP_FILE,&words,&wordvecs,20)?;
             }
             "test" => { check_word_file()?; }

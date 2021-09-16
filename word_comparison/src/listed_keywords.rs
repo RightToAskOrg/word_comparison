@@ -14,7 +14,7 @@ pub struct ListedKeywords {
 }
 
 impl ListedKeywords {
-    pub const STD_LOCATION : &'static str = "/big/shared/NLP.glove/glove6B/ListedKeywords.csv";
+    pub const STD_LOCATION : &'static str = "ListedKeywords.csv";
     pub fn load<P:AsRef<Path>>(path:P) -> std::io::Result<Self> {
         let mut keywords = vec![];
         let mut reader = ReaderBuilder::new().flexible(true).has_headers(false).from_path(path)?;
