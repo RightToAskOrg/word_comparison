@@ -2,14 +2,22 @@
 
 
 
+
+use std::ops::DerefMut;
 use actix_web::{HttpServer, middleware, web};
 use actix_web::web::Json;
 use actix_web::{get, post};
 use async_std::sync::Mutex;
 use word_comparison::word_file::{WordsInFile, WORD_MMAP_FILE};
 use word_comparison::listed_keywords::ListedKeywords;
-use word_comparison::comparison_list::{QuestionDatabase, QuestionID, ScoredIDs};
+use word_comparison::comparison_list::{add_question, find_similar_in_database, ScoredIDs};
 use std::path::PathBuf;
+use word_comparison::database_backend::{InternalQuestionId, WordComparisonDatabaseBackend};
+use word_comparison::flatfile_database_backend::FlatfileDatabaseBackend;
+
+/// The external question ID.
+type QuestionID = u32;
+type QuestionDatabase = FlatfileDatabaseBackend<QuestionID>;
 
 #[derive(serde::Deserialize)]
 struct QueryQuestion {
@@ -18,14 +26,14 @@ struct QueryQuestion {
 
 /// Get some particular question
 #[get("/get_question")]
-async fn get_question(query:web::Query<QueryQuestion>, question_db: web::Data<Mutex<QuestionDatabase>>) -> Json<Option<String>> {
-    Json(question_db.lock().await.lookup(query.id).map(|s|s.to_string()))
+async fn get_question(query:web::Query<QueryQuestion>, question_db: web::Data<Mutex<QuestionDatabase>>) -> Json<Result<Option<String>,String>> {
+    Json(question_db.lock().await.lookup(query.id).map_err(|s|s.to_string()))
 }
 
 /// Get some particular question
 #[get("/get_all_questions")]
-async fn get_all_questions(question_db: web::Data<Mutex<QuestionDatabase>>) -> Json<Vec<String>> {
-    Json(question_db.lock().await.get_all_questions())
+async fn get_all_questions(question_db: web::Data<Mutex<QuestionDatabase>>) -> Json<Result<Vec<String>,String>> {
+    Json(question_db.lock().await.get_all_questions().map_err(|s|s.to_string()))
 }
 
 
@@ -36,8 +44,9 @@ struct QuerySimilarity {
 
 /// Get some particular question
 #[get("/get_similar")]
-async fn get_similar(query:web::Query<QuerySimilarity>, question_db: web::Data<Mutex<QuestionDatabase>>, words: web::Data<WordsInFile>,keywords: web::Data<ListedKeywords>) -> Json<Vec<ScoredIDs>> {
-    Json(question_db.lock().await.compare(&query.question,&words,&keywords))
+async fn get_similar(query:web::Query<QuerySimilarity>, question_db: web::Data<Mutex<QuestionDatabase>>, words: web::Data<WordsInFile>,keywords: web::Data<ListedKeywords>) -> Json<Result<Vec<ScoredIDs>,String>> {
+    let similar = find_similar_in_database(question_db.lock().await.deref_mut(),&query.question,&words,&keywords);
+    Json(similar.map_err(|e|e.to_string()))
 }
 
 /// find the path containing web resources, static web files that will be served.
@@ -61,8 +70,10 @@ struct Publish {
 }
 
 #[post("/submit_question")]
-async fn submit_question(command : web::Json<Publish>, question_db: web::Data<Mutex<QuestionDatabase>>, words: web::Data<WordsInFile>,keywords: web::Data<ListedKeywords>) -> Json<Result<QuestionID,String>> {
-    Json(question_db.lock().await.add(&command.data,&words,&keywords).map_err(|e|e.to_string()))
+async fn submit_question(command : web::Json<Publish>, question_db: web::Data<Mutex<QuestionDatabase>>, words: web::Data<WordsInFile>,keywords: web::Data<ListedKeywords>) -> Json<Result<InternalQuestionId,String>> {
+    let external_id = question_db.lock().await.len()*2+7;
+    let res = add_question(question_db.lock().await.deref_mut(),&command.data,external_id as u32,&words,&keywords);
+    Json(res.map_err(|e|e.to_string()))
 }
 
 
@@ -71,10 +82,12 @@ async fn submit_question(command : web::Json<Publish>, question_db: web::Data<Mu
 async fn main() -> anyhow::Result<()> {
     let words = WordsInFile::read_word_file(WORD_MMAP_FILE)?;
     let keywords = ListedKeywords::load(ListedKeywords::STD_LOCATION)?;
-    let questions = QuestionDatabase::new(QuestionDatabase::STD_FILE_NAME,&words,&keywords)?;
+    let filename : &str = FlatfileDatabaseBackend::<QuestionID>::STD_FILE_NAME;
+    let questions : FlatfileDatabaseBackend<QuestionID> = FlatfileDatabaseBackend::<QuestionID>::new(filename,&words,&keywords)?;
     let questions = web::Data::new(Mutex::new(questions));
     let words = web::Data::new(words);
     let keywords = web::Data::new(keywords);
+    reload_from_textfile(questions.lock().await.deref_mut(),&words,&keywords)?;
     println!("Running demo webserver on http://localhost:8091");
     HttpServer::new(move|| {
         actix_web::App::new()
@@ -91,5 +104,19 @@ async fn main() -> anyhow::Result<()> {
         .bind("0.0.0.0:8091")?
         .run()
         .await?;
+    Ok(())
+}
+
+/// Load the database from a file containing a list of questions one per line.
+pub fn reload_from_textfile(questions : &mut FlatfileDatabaseBackend<QuestionID>,words:&WordsInFile,keywords:&ListedKeywords) -> anyhow::Result<()> {
+    use std::io::BufRead;
+    questions.clear_all_reinitialize()?;
+    let mut count = 0;
+    if let Ok(file) = std::fs::File::open("SampleTextDatabase.txt") {
+        for line in std::io::BufReader::new(file).lines() {
+            add_question(questions,&line?,count,words,keywords)?;
+            count+=1;
+        }
+    }
     Ok(())
 }

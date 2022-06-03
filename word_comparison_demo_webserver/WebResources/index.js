@@ -11,12 +11,14 @@ function failure(error) {
 
 function updateAllList() {
     function success(data) {
-        console.log(data);
-        const div = document.getElementById("AllQuestions");
-        removeAllChildElements(div);
-        for (const question of data) {
-            add(div,"div","question").innerText=question;
-        }
+        if (data.Ok) {
+            console.log(data.Ok);
+            const div = document.getElementById("AllQuestions");
+            removeAllChildElements(div);
+            for (const question of data.Ok) {
+                add(div,"div","question").innerText=question;
+            }
+        } else { failure(data.Err) }
     }
     getWebJSON("get_all_questions",success,failure);
 }
@@ -33,18 +35,21 @@ function checkSimilarity() {
         }
     }
     function success(data) {
-        console.log(data);
-        const div = document.getElementById("SimilarQuestions");
-        removeAllChildElements(div);
-        for (const possibility of data) {
-            let line = add(div,"div","SimilarQuestionLine");
-            add(line,"span","score").innerText = possibility.score.toFixed(2);
-            function foundQuestion(data) {
-                addText(line," "+data);
+        if (data.Err) failure(data.Err);
+        else {
+            console.log(data.Ok);
+            const div = document.getElementById("SimilarQuestions");
+            removeAllChildElements(div);
+            for (const possibility of data.Ok) {
+                let line = add(div,"div","SimilarQuestionLine");
+                add(line,"span","score").innerText = possibility.score.toFixed(2);
+                function foundQuestion(data) {
+                    if (data.Ok) addText(line," "+data.Ok);
+                }
+                getWebJSON(getURL("get_question",{id:possibility.id}),foundQuestion,failure);
             }
-            getWebJSON(getURL("get_question",{id:possibility.id}),foundQuestion,failure);
+            pendingCheck();
         }
-        pendingCheck();
     }
     function failurePending(message) {
         failure(message);

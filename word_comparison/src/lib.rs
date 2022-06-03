@@ -4,6 +4,8 @@ pub mod near_words;
 pub mod sentences;
 pub mod listed_keywords;
 pub mod comparison_list;
+pub mod database_backend;
+pub mod flatfile_database_backend;
 
 #[cfg(test)]
 mod tests {
