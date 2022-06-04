@@ -34,8 +34,8 @@ fn score_known(word : WordIndex) -> f64 {
 /// Find questions in the database that are similar to this one.
 pub fn find_similar_in_database<B:WordComparisonDatabaseBackend>(backend:&mut B, question:&str, words:&WordsInFile, keywords:&ListedKeywords) -> anyhow::Result<Vec<ScoredIDs<B::ExternalQuestionId>>> {
     let tokenized = TokenizedSentence::tokenize(&question,words,keywords);
-    println!();
-    tokenized.explain(words,keywords);
+    // println!();
+    // tokenized.explain(words,keywords);
     let mut scores = SentenceScores::default();
     for token in &tokenized.parts {
         match token {
