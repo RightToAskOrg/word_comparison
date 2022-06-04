@@ -44,7 +44,7 @@ struct QuerySimilarity {
 
 /// Get some particular question
 #[get("/get_similar")]
-async fn get_similar(query:web::Query<QuerySimilarity>, question_db: web::Data<Mutex<QuestionDatabase>>, words: web::Data<WordsInFile>,keywords: web::Data<ListedKeywords>) -> Json<Result<Vec<ScoredIDs>,String>> {
+async fn get_similar(query:web::Query<QuerySimilarity>, question_db: web::Data<Mutex<QuestionDatabase>>, words: web::Data<WordsInFile>,keywords: web::Data<ListedKeywords>) -> Json<Result<Vec<ScoredIDs<QuestionID>>,String>> {
     let similar = find_similar_in_database(question_db.lock().await.deref_mut(),&query.question,&words,&keywords);
     Json(similar.map_err(|e|e.to_string()))
 }
@@ -87,7 +87,7 @@ async fn main() -> anyhow::Result<()> {
     let questions = web::Data::new(Mutex::new(questions));
     let words = web::Data::new(words);
     let keywords = web::Data::new(keywords);
-    reload_from_textfile(questions.lock().await.deref_mut(),&words,&keywords)?;
+    //reload_from_textfile(questions.lock().await.deref_mut(),&words,&keywords)?;
     println!("Running demo webserver on http://localhost:8091");
     HttpServer::new(move|| {
         actix_web::App::new()

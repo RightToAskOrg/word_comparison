@@ -32,7 +32,7 @@ fn score_known(word : WordIndex) -> f64 {
 
 
 /// Find questions in the database that are similar to this one.
-pub fn find_similar_in_database<B:WordComparisonDatabaseBackend>(backend:&mut B, question:&str, words:&WordsInFile, keywords:&ListedKeywords) -> anyhow::Result<Vec<ScoredIDs>> {
+pub fn find_similar_in_database<B:WordComparisonDatabaseBackend>(backend:&mut B, question:&str, words:&WordsInFile, keywords:&ListedKeywords) -> anyhow::Result<Vec<ScoredIDs<B::ExternalQuestionId>>> {
     let tokenized = TokenizedSentence::tokenize(&question,words,keywords);
     println!();
     tokenized.explain(words,keywords);
@@ -57,7 +57,8 @@ pub fn find_similar_in_database<B:WordComparisonDatabaseBackend>(backend:&mut B,
             },
         }
     }
-    Ok(scores.extract_ordered())
+    let internal_ids = scores.extract_ordered();
+    backend.convert_internal_ids_to_external_ids(internal_ids)
 }
 
 
@@ -68,10 +69,12 @@ struct SentenceScores {
 }
 
 #[derive(Copy, Clone,Debug,Serialize,Deserialize)]
-pub struct ScoredIDs {
-    pub id : InternalQuestionId,
+pub struct ScoredIDs<ID> {
+    pub id : ID,
     pub score : f64,
 }
+
+
 impl SentenceScores {
     /// Add a set of questions containing this id.
     /// Assign the given number of points.
@@ -95,8 +98,8 @@ impl SentenceScores {
         }
     }
 
-    pub fn extract_ordered(self) -> Vec<ScoredIDs> {
-        let mut res : Vec<ScoredIDs> = self.scores.iter().map(|(&id,&score)|ScoredIDs{id,score}).collect();
+    pub fn extract_ordered(self) -> Vec<ScoredIDs<InternalQuestionId>> {
+        let mut res : Vec<ScoredIDs<InternalQuestionId>> = self.scores.iter().map(|(&id,&score)|ScoredIDs{id,score}).collect();
         res.sort_by(|a,b|b.score.partial_cmp(&a.score).unwrap());
         res
     }

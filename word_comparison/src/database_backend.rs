@@ -1,6 +1,7 @@
 use std::borrow::Cow;
 use std::collections::HashSet;
 use serde::{Serialize,Deserialize};
+use crate::comparison_list::ScoredIDs;
 use crate::listed_keywords::{ListedKeywordIndex, ListedKeywords};
 use crate::sentences::{SentencePart, TokenizedSentence};
 use crate::word::WordIndex;
@@ -33,6 +34,13 @@ pub trait WordComparisonDatabaseBackend {
 
     /// Get the text associated with a question. Mainly used for debugging.
     fn lookup(&self,id:Self::ExternalQuestionId) -> anyhow::Result<Option<String>>;
+
+    /// Convert the IDs in a vector of ScoredIDs from internal ids to external ids.
+    fn convert_internal_ids_to_external_ids(&self,internal_ids:Vec<ScoredIDs<InternalQuestionId>>) -> anyhow::Result<Vec<ScoredIDs<Self::ExternalQuestionId>>>;
+
+    /// Delete everything in the database and reinitialize as an empty database.
+    /// To recreate the database, call this, then call [crate::comparison_list::add_question] with each question that should be in it.
+    fn clear_all_reinitialize(&mut self) -> anyhow::Result<()>;
 }
 
 

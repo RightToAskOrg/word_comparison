@@ -11,6 +11,7 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use anyhow::anyhow;
+use crate::comparison_list::ScoredIDs;
 use crate::database_backend::{InternalQuestionId, ParsedQuestion, WordComparisonDatabaseBackend};
 use crate::listed_keywords::{ListedKeywordIndex, ListedKeywords};
 use crate::word::WordIndex;
@@ -54,6 +55,21 @@ impl <Q : Clone+Display+PartialEq+FromStr> WordComparisonDatabaseBackend for Fla
     /// Get the text associated with a question. Very inefficient! But this is just for debugging.
     fn lookup(&self,id:Self::ExternalQuestionId) -> anyhow::Result<Option<String>> {
         Ok(self.external_ids.iter().position(|e|*e==id).map(|index|self.questions[index].clone()))
+    }
+
+    fn convert_internal_ids_to_external_ids(&self, internal_ids: Vec<ScoredIDs<InternalQuestionId>>) -> anyhow::Result<Vec<ScoredIDs<Self::ExternalQuestionId>>> {
+        Ok(internal_ids.into_iter().map(|s|ScoredIDs{id:self.external_ids[s.id.0 as usize].clone(),score:s.score}).collect())
+    }
+
+    /// Delete everything in the database and reinitialize as an empty database.
+    fn clear_all_reinitialize(&mut self) -> anyhow::Result<()> {
+        self.questions.clear();
+        self.external_ids.clear();
+        self.containing_keyword.clear();
+        self.containing_known_word.clear();
+        self.containing_unique.clear();
+        if Path::new(&self.filename).exists() { remove_file(&self.filename)? };
+        Ok(())
     }
 
 }
@@ -111,15 +127,5 @@ impl <Q : Clone+Display+FromStr> FlatfileDatabaseBackend<Q> {
 
     pub fn len(&self) -> usize { self.questions.len() }
 
-    /// Delete everything in the database and reinitialize as an empty database.
-    pub fn clear_all_reinitialize(&mut self) -> anyhow::Result<()> {
-        self.questions.clear();
-        self.external_ids.clear();
-        self.containing_keyword.clear();
-        self.containing_known_word.clear();
-        self.containing_unique.clear();
-        if Path::new(&self.filename).exists() { remove_file(&self.filename)? };
-        Ok(())
-    }
 
 }
