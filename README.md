@@ -1,3 +1,7 @@
+# Main development moved
+
+As of the prior commit 036713da, this has been moved into the right_to_ask_server git repository.
+
 # Question Comparison
 
 This is a Rust program as a prototype of the ability to compare questions to
