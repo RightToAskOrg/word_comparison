@@ -78,7 +78,7 @@ async fn submit_question(command : web::Json<Publish>, question_db: web::Data<Mu
 
 
 
-#[actix_rt::main]
+#[actix_web::main]
 async fn main() -> anyhow::Result<()> {
     let words = WordsInFile::read_word_file(WORD_MMAP_FILE)?;
     let keywords = ListedKeywords::load(ListedKeywords::STD_LOCATION)?;
